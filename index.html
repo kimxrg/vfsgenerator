@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4‑Way VFS Dive Pool Generator</title>
+  <style>
+    body {font-family: Arial, sans-serif; margin: 0; padding: 2rem; background:#f5f7fa; color:#222;}
+    h1 {text-align:center; margin-bottom:1rem;}
+    .card {background:#fff; border-radius:1rem; box-shadow:0 4px 10px rgba(0,0,0,.1); padding:2rem; max-width:900px; margin:0 auto;}
+    label {display:block; margin:0.5rem 0 0.25rem; font-weight:600;}
+    input[type="number"] {padding:0.5rem; width:100%; max-width:120px;}
+    .controls {display:flex; gap:2rem; flex-wrap:wrap; align-items:center;}
+    button {padding:0.75rem 1.5rem; border:none; border-radius:0.5rem; cursor:pointer; font-weight:700; background:#0077ff; color:#fff; transition:background .2s;}
+    button:hover {background:#005edd;}
+    pre {background:#272822; color:#f8f8f2; padding:1rem; border-radius:0.5rem; overflow:auto;}
+    table {width:100%; border-collapse:collapse; margin-top:1rem;}
+    th, td {padding:0.6rem; border-bottom:1px solid #ddd; text-align:left; font-family:monospace;}
+    th {background:#e9ecef;}
+    @media (max-width:600px){.controls{flex-direction:column;}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>4‑Way VFS Dive Pool Generator</h1>
+    <div class="controls">
+      <div>
+        <label for="rounds">Rounds to draw (max 10)</label>
+        <input type="number" id="rounds" min="1" max="10" value="10" />
+      </div>
+      <div>
+        <label><input type="checkbox" id="includeBlocks" checked /> Include Blocks</label>
+        <label><input type="checkbox" id="includeRandoms" checked /> Include Randoms</label>
+      </div>
+      <button id="generate">Generate&nbsp;Draw</button>
+    </div>
+    <div id="output"></div>
+  </div>
+
+<script>
+(() => {
+  // ----- Dive pool data ----------------------------------------------------
+  const randoms = [
+    {code:"A", name:"Cross",        score:1},
+    {code:"B", name:"Wave",         score:1},
+    {code:"C", name:"Flock",        score:1},
+    {code:"D", name:"Rebel",        score:1},
+    {code:"E", name:"Gulley",       score:1},
+    {code:"F", name:"Double Joker", score:1},
+    {code:"G", name:"Double Rebel", score:1},
+    {code:"H", name:"Cortex",       score:1},
+    {code:"J", name:"Shoeshine",    score:1},
+    {code:"K", name:"Mixed Star",   score:1},
+    {code:"L", name:"Anchor",       score:1},
+    {code:"M", name:"Chemtrails",   score:1},
+    {code:"N", name:"Box",          score:1},
+    {code:"O", name:"T‑Bird",       score:1},
+    {code:"P", name:"Trident",      score:1},
+    {code:"Q", name:"Mixed Wave",   score:1},
+  ];
+
+  const blocks = [
+    {code:1,  name:"Arrowhead",       score:2},
+    {code:2,  name:"Claw",            score:2},
+    {code:3,  name:"HD Accordion",    score:2},
+    {code:4,  name:"Chain Gang",      score:2},
+    {code:5,  name:"Mixed Accordion", score:2},
+    {code:6,  name:"Snowflake",       score:2},
+    {code:7,  name:"Flower",          score:2},
+    {code:8,  name:"Buddy",           score:2},
+    {code:9,  name:"Shorty",          score:2},
+    {code:10, name:"Mixed Anthem",    score:2},
+    {code:11, name:"Fun Buddies",     score:2},
+    {code:12, name:"Pinwheel",        score:2},
+    {code:13, name:"HD Star",         score:2},
+    {code:14, name:"Satellite",       score:2},
+    {code:15, name:"Bipole",          score:2},
+    {code:16, name:"Chimmy",          score:2},
+    {code:17, name:"Zins",            score:2},
+    {code:18, name:"Ding",            score:2},
+    {code:19, name:"Angry Pelican",   score:2},
+    {code:20, name:"Focus Buddies",   score:2},
+    {code:21, name:"Top Spot",        score:2},
+    {code:22, name:"Core Buddies",    score:2},
+  ];
+
+  // ----- Utilities ---------------------------------------------------------
+  function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  function buildPool(includeBlocks, includeRandoms) {
+    const pool = [];
+    if (includeBlocks) pool.push(...blocks.map(b => ({...b, type:"block"})) );
+    if (includeRandoms) pool.push(...randoms.map(r => ({...r, type:"random"})) );
+    return shuffle(pool);
+  }
+
+  function generateDraw(rounds, includeBlocks, includeRandoms) {
+    const pool = buildPool(includeBlocks, includeRandoms);
+    const unused = [...pool];
+    const roundsOut = [];
+
+    for (let r = 0; r < rounds; r++) {
+      let seq = [];
+      let score = 0;
+      // Re‑shuffle unused when empty (per 4.2.3 – formations are only repeated after exhaustion)
+      while (score < 5) {
+        if (!unused.length) unused.push(...buildPool(includeBlocks, includeRandoms));
+        const item = unused.pop();
+        // Check if adding item would overshoot 6. If so, put back and reshuffle smaller choice
+        if (score + item.score > 6) {
+          // try once more – if not possible, break to avoid infinite loop
+          if (unused.length === 0) break;
+          unused.unshift(item); // put back at start
+          continue;
+        }
+        seq.push(item);
+        score += item.score;
+        // 50% chance to stop at 5 if possible
+        if (score >= 5 && score <= 6) {
+          if (score === 5 && Math.random() < 0.5) break;
+          if (score === 6) break;
+        }
+      }
+      roundsOut.push(seq);
+    }
+    return roundsOut;
+  }
+
+  function render(rounds) {
+    const output = document.getElementById("output");
+    output.innerHTML = "";
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    thead.innerHTML = `<tr><th>Round</th><th>Sequence (code)</th><th>Names</th></tr>`;
+    table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    rounds.forEach((seq, idx) => {
+      const codes = seq.map(i => i.code).join(" – ");
+      const names = seq.map(i => i.name).join(", ");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${idx + 1}</td><td>${codes}</td><td>${names}</td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    output.appendChild(table);
+  }
+
+  // ----- Event handlers ----------------------------------------------------
+  document.getElementById("generate").addEventListener("click", () => {
+    const rounds = parseInt(document.getElementById("rounds").value, 10) || 1;
+    const includeBlocks = document.getElementById("includeBlocks").checked;
+    const includeRandoms = document.getElementById("includeRandoms").checked;
+    if (!includeBlocks && !includeRandoms) {
+      alert("Please select at least one formation type.");
+      return;
+    }
+    const draw = generateDraw(rounds, includeBlocks, includeRandoms);
+    render(draw);
+  });
+
+  // initial draw
+  document.getElementById("generate").click();
+})();
+</script>
+</body>
+</html>
